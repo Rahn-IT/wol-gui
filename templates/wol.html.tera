@@ -1,0 +1,96 @@
+{% extends "base" %}
+
+{% block content %}
+    <h1>Devices</h1>
+
+        {% if flash %}
+            <div class="card field-{{flash.0}}-msg">
+               {{ flash.1 }}
+            </div>
+        {% endif %}
+
+    <div class="card">
+        <form action="/wol" method="post">
+            <input type="hidden" name="enabled" value="true">
+
+            <table>
+                <tr>
+                    <th><label for="name">Name</label></th>
+                    <th><label for="mac">Mac-Address</label></th>
+                    <th><label for="ip">IP</label></th>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td><input type="text" id="name" name="name" required></td>
+                    <td><input type="text" id="mac" name="mac" required></td>
+                    <td><input type="text" id="ip" name="ip" ></td>
+                    <td>
+                        <input class="btn" type="submit" value="Add">
+                    </td>
+                </tr>
+            </table>
+
+        </form>
+    </div>
+
+    <div class="card">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Mac</th>
+                    <th>IP</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for device in devices %}
+                    <tr>
+                    {% if device.id == edit %}
+                    <form action="/wol/{{ device.id }}" method="post">
+                        <td><input type="text" id="name" name="name" value="{{ device.name }}" required></td>
+                        <td><input type="text" id="mac" name="mac"value="{{ device.mac }}" required></td>
+                        <td><input type="text" id="ip" name="ip" value="{{ device.ip }}"></td>
+                        <td>
+                            <div class="actions">
+                                <div>
+                                    <a href="/">❌</a>
+                                    <span class="tooltip">Cancel</span>
+                                </div>
+                                <div>
+                                    <input type="submit" value="💾">
+                                    <span class="tooltip">Save</span>
+                                </div>
+                            </div>
+                        </td>
+                    </form>
+
+                    {% else %}
+                        <td>{{ device.name }}</td>
+                        <td>{{ device.mac }}</td>
+                        <td>{{ device.ip }}</td>
+                        <td>
+                            <div class="actions">
+                                <form action="/wol/{{ device.id }}/wake" method="post">
+                                    <input type="hidden" name="confirm" value="true">
+                                    <input type="submit" value="⏰">
+                                    <span class="tooltip">Wake on Lan</span>
+                                </form>
+                                <div>
+                                    <a href="/?edit={{ device.id }}">✏️</a>
+                                    <span class="tooltip">Edit</span>
+                                </div>
+                                <form action="/wol/{{ device.id }}/delete" method="post" onsubmit="return confirm('Are you sure you want to delete this device?')">
+                                    <input type="hidden" name="confirm" value="true">
+                                    <input type="submit" value="🗑️">
+                                    <span class="tooltip">Delete</span>
+                                </form>
+                            </div>
+                        </td>
+                    {% endif %}
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock content %}

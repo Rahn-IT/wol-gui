@@ -1,0 +1,15 @@
+volumes:
+  data:
+
+services:
+  app:
+    build: .
+    image: ghcr.io/rahn-it/wol-gui:master
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      RUST_BACKTRACE: 1
+    volumes:
+      - data:/app/db
+
+  
