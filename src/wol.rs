@@ -80,6 +80,11 @@ impl WolDevice {
 
         Ok(())
     }
+
+    fn normalize_mac(mut self) -> Self {
+        self.mac = self.mac.replace(":", "-").to_uppercase();
+        self
+    }
 }
 
 #[derive(Error, Debug)]
@@ -152,9 +157,11 @@ pub async fn index(edit: Option<i32>, flash: Option<FlashMessage<'_>>, conn: DbC
 
 #[post("/wol", data = "<device_form>")]
 pub async fn create(device_form: Form<WolDevice>, conn: DbConn) -> Flash<Redirect> {
-    let device = device_form.into_inner();
+    let device = device_form.into_inner().normalize_mac();
 
-    // TODO: validate
+    if let Err(e) = parse_mac(&device.mac) {
+        return Flash::error(Redirect::to("/"), format!("Invalid MAC address: {}", e));
+    }
 
     if let Err(e) = WolDevice::insert(device, &conn).await {
         Flash::error(Redirect::to("/"), e.to_string())
@@ -165,10 +172,7 @@ pub async fn create(device_form: Form<WolDevice>, conn: DbConn) -> Flash<Redirec
 
 #[post("/wol/<id>", data = "<device_form>")]
 pub async fn update(id: i32, device_form: Form<WolDevice>, conn: DbConn) -> Flash<Redirect> {
-    let mut device = device_form.into_inner();
-    device.mac = device.mac.replace(":", "-");
-
-    // TODO: validate
+    let device = device_form.into_inner().normalize_mac();
 
     if let Err(e) = parse_mac(&device.mac) {
         return Flash::error(
