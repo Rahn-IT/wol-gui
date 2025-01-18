@@ -20,7 +20,7 @@ wol-gui can be installed using docker:
 
 ```shell
 docker pull ghcr.io/rahn-it/wol-gui:master
-docker run -d --network=host --name wol-gui -r PORT=8080 -v ./db:/app/db ghcr.io/rahn-it/wol-gui:master
+docker run -d --network=host --name wol-gui -e PORT=8080 -v ./db:/app/db ghcr.io/rahn-it/wol-gui:master
 ```
 
 I would recommend using docker-compose though.
