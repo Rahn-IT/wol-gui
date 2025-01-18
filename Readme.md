@@ -12,7 +12,9 @@ Currently, wol-gui has the following features:
 - Edit existing devices
 - Send magic packets
 
-# Installation
+I'd love to add an online monitor (hence the IP field), but I'm unsure when I'll get to it.
+
+## Installation
 
 wol-gui can be installed using docker:
 
@@ -23,7 +25,7 @@ docker run -d --network=host --name wol-gui -r PORT=8080 -v ./db:/app/db ghcr.io
 
 I would recommend using docker-compose though.
 
-As a starting point you can use the [docker compose file](docker-compose.yaml) fr0m this repository.
+As a starting point you can use the [docker compose file](docker-compose.yaml) from this repository.
 
 ## Usage
 
