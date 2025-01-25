@@ -25,7 +25,14 @@ async fn rocket() -> _ {
         .configure(rocket::Config::figment().merge(("port", port)))
         .mount(
             "/",
-            routes![wol::index, wol::create, wol::update, wol::delete, wol::wake],
+            routes![
+                wol::index,
+                wol::create,
+                wol::update,
+                wol::delete,
+                wol::wake,
+                wol::online_status
+            ],
         )
         .mount("/static", FileServer::from("templates/static"))
         .attach(Template::fairing())

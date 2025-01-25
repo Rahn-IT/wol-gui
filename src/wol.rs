@@ -1,11 +1,13 @@
-use std::num::ParseIntError;
+use std::{collections::HashMap, net::IpAddr, num::ParseIntError, sync::Arc};
 
 use diesel::{ExpressionMethods, QueryDsl, QueryResult, RunQueryDsl};
 use rocket::{
     form::Form,
+    http::Status,
     request::FlashMessage,
-    response::{Flash, Redirect},
-    tokio::net::UdpSocket,
+    response::{Flash, Redirect, Responder},
+    serde::json::Json,
+    tokio::{net::UdpSocket, task::JoinSet},
 };
 use rocket_dyn_templates::Template;
 use serde::Serialize;
@@ -81,8 +83,10 @@ impl WolDevice {
         Ok(())
     }
 
-    fn normalize_mac(mut self) -> Self {
-        self.mac = self.mac.replace(":", "-").to_uppercase();
+    fn normalize(mut self) -> Self {
+        self.mac = self.mac.replace(":", "-").trim().to_uppercase();
+        self.ip = self.ip.map(|ip| ip.trim().to_string());
+        self.name = self.name.trim().to_string();
         self
     }
 }
@@ -157,7 +161,7 @@ pub async fn index(edit: Option<i32>, flash: Option<FlashMessage<'_>>, conn: DbC
 
 #[post("/wol", data = "<device_form>")]
 pub async fn create(device_form: Form<WolDevice>, conn: DbConn) -> Flash<Redirect> {
-    let device = device_form.into_inner().normalize_mac();
+    let device = device_form.into_inner().normalize();
 
     if let Err(e) = parse_mac(&device.mac) {
         return Flash::error(Redirect::to("/"), format!("Invalid MAC address: {}", e));
@@ -172,7 +176,7 @@ pub async fn create(device_form: Form<WolDevice>, conn: DbConn) -> Flash<Redirec
 
 #[post("/wol/<id>", data = "<device_form>")]
 pub async fn update(id: i32, device_form: Form<WolDevice>, conn: DbConn) -> Flash<Redirect> {
-    let device = device_form.into_inner().normalize_mac();
+    let device = device_form.into_inner().normalize();
 
     if let Err(e) = parse_mac(&device.mac) {
         return Flash::error(
@@ -208,4 +212,59 @@ pub async fn wake(id: i32, conn: DbConn) -> Flash<Redirect> {
     } else {
         Flash::success(Redirect::to("/"), "Sent WOL packet")
     }
+}
+
+#[derive(Error, Debug)]
+pub enum StatusError {
+    #[error("DB error")]
+    Query(#[from] diesel::result::Error),
+    #[error("IO error")]
+    Io(#[from] std::io::Error),
+    #[error("joinset error")]
+    JoinSet(#[from] rocket::tokio::task::JoinError),
+}
+
+impl<'r, 'o: 'r> Responder<'r, 'o> for StatusError {
+    fn respond_to(self, _request: &'r rocket::Request<'_>) -> rocket::response::Result<'o> {
+        rocket::response::Result::Err(Status::InternalServerError)
+    }
+}
+
+#[get("/wol/online_status")]
+pub async fn online_status(conn: DbConn) -> Result<Json<HashMap<i32, bool>>, StatusError> {
+    let devices = WolDevice::all(&conn).await?;
+
+    let config = surge_ping::Config::default();
+    let client = Arc::new(surge_ping::Client::new(&config)?);
+
+    let mut joinset = JoinSet::<(i32, bool)>::new();
+
+    for device in devices {
+        if let Some(ip) = device.ip {
+            if let Ok(ip) = ip.parse::<IpAddr>() {
+                let client = client.clone();
+                joinset.spawn(async move {
+                    let ping_result = client
+                        .pinger(ip, (device.id.unwrap() as u16).into())
+                        .await
+                        .ping(1.into(), &[])
+                        .await;
+
+                    match ping_result {
+                        Ok(_) => (device.id.unwrap(), true),
+                        Err(_) => (device.id.unwrap(), false),
+                    }
+                });
+            }
+        }
+    }
+
+    let mut online_status = HashMap::new();
+
+    while let Some(join_result) = joinset.join_next().await {
+        let (id, online) = join_result?;
+        online_status.insert(id, online);
+    }
+
+    Ok(Json(online_status))
 }
